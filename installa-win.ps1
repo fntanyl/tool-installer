@@ -3,7 +3,7 @@
 # Nessun .exe nostro: Smart App Control non ha nulla da bloccare.
 #
 # Riga per l'utente (Win+R):
-#   powershell -NoProfile -ExecutionPolicy Bypass -c "[Net.ServicePointManager]::SecurityProtocol='Tls12'; irm https://raw.githubusercontent.com/fntanyl/nilufar-tools-installer/main/installa-win.ps1 | iex"
+#   powershell -NoProfile -ExecutionPolicy Bypass -c "[Net.ServicePointManager]::SecurityProtocol='Tls12'; irm https://raw.githubusercontent.com/fntanyl/tool-installer/main/installa-win.ps1 | iex"
 # Rilanciarla = riparare. Opzioni tramite variabili d'ambiente prima di irm:
 #   $env:NILUFAR_DISINSTALLA='1'   toglie collegamenti e dati dello strumento (Documenti\Nilufar Tools resta)
 #   $env:NILUFAR_NUOVA_CHIAVE='1'  chiede di nuovo la chiave
@@ -17,7 +17,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 $Owner = if ($env:NILUFAR_OWNER) { $env:NILUFAR_OWNER } else { 'fntanyl' }
 $Repo = if ($env:NILUFAR_REPO) { $env:NILUFAR_REPO } else { 'NilufarTools' }
-$InstallerBase = "https://raw.githubusercontent.com/$Owner/nilufar-tools-installer/main"
+$InstallerBase = "https://raw.githubusercontent.com/$Owner/tool-installer/main"
 $Api = 'https://api.github.com'
 $Root = Join-Path $env:LOCALAPPDATA 'NilufarTools'
 $Rt = Join-Path $Root 'runtime'
@@ -118,7 +118,7 @@ Write-Host "  NILUFAR TOOLS - installazione su Windows"
 Write-Host "  -------------------------------------------------------------"
 
 # ---------------------------------------------------------------- disinstalla
-if ($env:NILUFAR_DISINSTALLA -eq '1') {
+if ($env:NILUFAR_DISINSTALLA -eq '1' -or $env:DISINSTALLA -eq '1') {
     $r = Read-Host "  Tolgo Nilufar Tools da questo PC (i documenti in $Docs restano). Confermi? [s/N]"
     if ($r -notmatch '^(s|si)$') { Write-Host "  Annullato."; return }
     Get-CimInstance Win32_Process -Filter "Name like 'python%'" -ErrorAction SilentlyContinue |

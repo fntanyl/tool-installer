@@ -1,7 +1,7 @@
 #!/bin/bash
 # Nilufar Tools - installazione su Mac (nessuna password di amministratore, nessun avviso di sicurezza).
 #
-#   curl -fsSL https://raw.githubusercontent.com/fntanyl/nilufar-tools-installer/main/installa-mac.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/fntanyl/tool-installer/main/installa-mac.sh | bash
 #
 # Rilanciarlo = riparare (idempotente). Opzioni (dopo "bash -s --"):
 #   --disinstalla     toglie app e dati dello strumento (la cartella Documenti/Nilufar Tools resta)
@@ -16,7 +16,7 @@ set -euo pipefail
 
 OWNER="${NILUFAR_OWNER:-fntanyl}"
 REPO="${NILUFAR_REPO:-NilufarTools}"
-INSTALLER_BASE="https://raw.githubusercontent.com/$OWNER/nilufar-tools-installer/main"
+INSTALLER_BASE="https://raw.githubusercontent.com/$OWNER/tool-installer/main"
 API="https://api.github.com"
 ROOT="$HOME/Library/Application Support/NilufarTools"
 APP="$HOME/Applications/Nilufar Tools.app"
