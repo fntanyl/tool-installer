@@ -164,6 +164,8 @@ printf '%s' "$TOKEN" | "$PY" "$ROOT/tmp/updater.py" installa --root "$ROOT" --ca
 CUR="$("$PY" -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$ROOT/current.json" </dev/null 2>/dev/null || true)"
 [ -n "$CUR" ] && [ -f "$ROOT/versions/$CUR/boot.py" ] && [ -f "$ROOT/avvia.py" ] || fail "installazione della versione non riuscita"
 rm -f "$ROOT/tmp/updater.py"
+# librerie precompilate (avvii veloci): se lo sono gia' non rifa' nulla
+"$PY" -m compileall -q -j 0 "$VENV/lib" </dev/null >> "$LOG" 2>&1 || true
 printf '%s' "$TOKEN" | NILUFAR_HOME="$ROOT/home" "$PY" "$ROOT/versions/$CUR/scripts/segreti.py" salva github >> "$LOG" 2>&1 \
     || fail "chiave non salvata nel Portachiavi"
 TOKEN=""
