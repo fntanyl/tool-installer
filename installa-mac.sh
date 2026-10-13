@@ -4,7 +4,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/fntanyl/tool-installer/main/installa-mac.sh | bash
 #
 # Rilanciarlo = riparare (idempotente). Opzioni (dopo "bash -s --"):
-#   --disinstalla     toglie app e dati dello strumento (la cartella Documenti/Nilufar Tools resta)
+#   --disinstalla     toglie app e dati dello strumento (la cartella ~/Nilufar Tools resta)
 #   --nuova-chiave    chiede di nuovo la chiave di installazione
 #   --canale test     installa anche le versioni di prova
 #
@@ -20,7 +20,7 @@ INSTALLER_BASE="https://raw.githubusercontent.com/$OWNER/tool-installer/main"
 API="https://api.github.com"
 ROOT="$HOME/Library/Application Support/NilufarTools"
 APP="$HOME/Applications/Nilufar Tools.app"
-DOCS="$HOME/Documents/Nilufar Tools"
+DOCS="$HOME/Nilufar Tools"          # cartella dell'utente (non protetta da macOS)
 RT="$ROOT/runtime"
 VENV="$RT/venv"
 PY="$VENV/bin/python"
@@ -68,7 +68,7 @@ if [ "$DISINSTALLA" = 1 ]; then
     exit 0
 fi
 
-mkdir -p "$LOGDIR" "$RT" "$ROOT/tmp" "$ROOT/home" "$DOCS"
+mkdir -p "$LOGDIR" "$RT" "$ROOT/tmp" "$ROOT/home"
 printf '\n---- %s installazione (%s)\n' "$(date '+%F %T')" "$(sw_vers -productVersion 2>/dev/null || echo macOS)" >> "$LOG"
 
 # ---------------------------------------------------------------- 1. chiave
@@ -139,6 +139,9 @@ fi
 
 # ---------------------------------------------------------------- 3. configurazione
 OLD_CANALE="$("$PY" -c "import json,sys; print(json.load(open(sys.argv[1])).get('canale',''))" "$ROOT/config.json" </dev/null 2>/dev/null || true)"
+# installazione esistente: la cartella dell'utente resta quella configurata (la sposta l'app, se serve)
+OLD_DOCS="$("$PY" -c "import json,sys; print(json.load(open(sys.argv[1])).get('docs',''))" "$ROOT/config.json" </dev/null 2>/dev/null || true)"
+[ -n "$OLD_DOCS" ] && DOCS="$OLD_DOCS"
 [ -n "$CANALE" ] || CANALE="${OLD_CANALE:-stabile}"
 NT_OWNER="$OWNER" NT_REPO="$REPO" NT_CANALE="$CANALE" NT_DOCS="$DOCS" NT_BASE="$INSTALLER_BASE" "$PY" - "$ROOT/config.json" <<'EOF' || fail "config.json non scritto"
 import json, os, sys
@@ -147,8 +150,10 @@ try:
     c = json.load(open(p, encoding="utf-8"))
 except Exception:
     c = {}
+if "docs" not in c:                    # prima installazione: cartella nuova, niente da spostare
+    c.update(docs=os.environ["NT_DOCS"], docs_versione=2)
 c.update(owner=os.environ["NT_OWNER"], repo=os.environ["NT_REPO"], canale=os.environ["NT_CANALE"],
-         docs=os.environ["NT_DOCS"], installer_base=os.environ["NT_BASE"], installer_version=1)
+         installer_base=os.environ["NT_BASE"], installer_version=2)
 json.dump(c, open(p + ".tmp", "w", encoding="utf-8"), indent=2, ensure_ascii=False)
 os.replace(p + ".tmp", p)
 EOF
@@ -191,10 +196,12 @@ EOF
 fi
 
 # ---------------------------------------------------------------- 6. app
-say "[6/6] creo l'app in $APP"
-rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cat > "$APP/Contents/Info.plist" <<'EOF'
+# l'app si prepara in tmp e sostituisce quella esistente SOLO se diversa: modificare un'app gia' presente
+# fa chiedere a macOS il permesso "Gestione app" al Terminale, cosi' succede al massimo una volta
+NEWAPP="$ROOT/tmp/Nilufar Tools.app"
+rm -rf "$NEWAPP"
+mkdir -p "$NEWAPP/Contents/MacOS" "$NEWAPP/Contents/Resources"
+cat > "$NEWAPP/Contents/Info.plist" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -213,7 +220,7 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 </plist>
 EOF
 # il lanciatore parte e finisce subito: ogni clic sull'icona riapre la finestra della dashboard
-cat > "$APP/Contents/MacOS/nilufar-tools" <<'EOF'
+cat > "$NEWAPP/Contents/MacOS/nilufar-tools" <<'EOF'
 #!/bin/bash
 ROOT="$HOME/Library/Application Support/NilufarTools"
 if [ ! -x "$ROOT/runtime/venv/bin/python" ] || [ ! -f "$ROOT/avvia.py" ]; then
@@ -225,12 +232,21 @@ cd "$ROOT/home" 2>/dev/null || cd "$ROOT"
 disown
 exit 0
 EOF
-chmod +x "$APP/Contents/MacOS/nilufar-tools"
-cp -f "$ROOT/versions/$CUR/static/nilufar.icns" "$APP/Contents/Resources/nilufar.icns" 2>/dev/null || true
-/usr/bin/xattr -cr "$APP" 2>/dev/null || true
-touch "$APP"
-LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
-[ -x "$LSREG" ] && "$LSREG" -f "$APP" </dev/null >/dev/null 2>&1 || true
+chmod +x "$NEWAPP/Contents/MacOS/nilufar-tools"
+cp -f "$ROOT/versions/$CUR/static/nilufar.icns" "$NEWAPP/Contents/Resources/nilufar.icns" 2>/dev/null || true
+if [ -d "$APP" ] && diff -rq "$NEWAPP" "$APP" </dev/null >/dev/null 2>&1; then
+    say "[6/6] app gia' a posto in $APP"
+    rm -rf "$NEWAPP"
+else
+    say "[6/6] creo l'app in $APP"
+    mkdir -p "$(dirname "$APP")"
+    rm -rf "$APP"
+    mv "$NEWAPP" "$APP"
+    /usr/bin/xattr -cr "$APP" 2>/dev/null || true
+    touch "$APP"
+    LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+    [ -x "$LSREG" ] && "$LSREG" -f "$APP" </dev/null >/dev/null 2>&1 || true
+fi
 rm -rf "$RT/uv-cache"
 
 say "avvio Nilufar Tools"

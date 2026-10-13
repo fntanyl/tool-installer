@@ -5,7 +5,7 @@
 # Riga per l'utente (Win+R):
 #   powershell -NoProfile -ExecutionPolicy Bypass -c "[Net.ServicePointManager]::SecurityProtocol='Tls12'; irm https://raw.githubusercontent.com/fntanyl/tool-installer/main/installa-win.ps1 | iex"
 # Rilanciarla = riparare. Opzioni tramite variabili d'ambiente prima di irm:
-#   $env:NILUFAR_DISINSTALLA='1'   toglie collegamenti e dati dello strumento (Documenti\Nilufar Tools resta)
+#   $env:NILUFAR_DISINSTALLA='1'   toglie collegamenti e dati dello strumento (la cartella Nilufar Tools resta)
 #   $env:NILUFAR_NUOVA_CHIAVE='1'  chiede di nuovo la chiave
 #   $env:NILUFAR_CANALE='test'     installa anche le versioni di prova
 #   $env:NILUFAR_VECCHIA='C:\...\NilufarTools'  cartella della vecchia installazione da migrare
@@ -26,7 +26,7 @@ $VenvPy = Join-Path $Venv 'Scripts\python.exe'
 $VenvPyw = Join-Path $Venv 'Scripts\pythonw.exe'
 $LogDir = Join-Path $Root 'logs-installazione'
 $Log = Join-Path $LogDir 'installazione.log'
-$Docs = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Nilufar Tools'
+$Docs = Join-Path $env:USERPROFILE 'Nilufar Tools'      # cartella dell'utente (fuori da OneDrive)
 $Desktop = [Environment]::GetFolderPath('Desktop')
 $StartMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Nilufar Tools.lnk'
 $DeskLnk = Join-Path $Desktop 'Nilufar Tools.lnk'
@@ -132,7 +132,7 @@ if ($env:NILUFAR_DISINSTALLA -eq '1' -or $env:DISINSTALLA -eq '1') {
     return
 }
 
-New-Item -ItemType Directory -Force -Path $LogDir, $Rt, (Join-Path $Root 'tmp'), (Join-Path $Root 'home\sessione'), $Docs | Out-Null
+New-Item -ItemType Directory -Force -Path $LogDir, $Rt, (Join-Path $Root 'tmp'), (Join-Path $Root 'home\sessione') | Out-Null
 Add-Content -LiteralPath $Log -Value ("`n---- {0} installazione" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
 if ($Root.Length -gt 120) { Say "ATTENZIONE: percorso lungo ($Root), alcune librerie potrebbero non installarsi" }
 
@@ -215,6 +215,8 @@ if (-not $Canale -and (Test-Path -LiteralPath $CfgFile)) {
     try { $Canale = (Get-Content -LiteralPath $CfgFile -Raw -Encoding UTF8 | ConvertFrom-Json).canale } catch {}
 }
 if (-not $Canale) { $Canale = 'stabile' }
+# installazione esistente: la cartella dell'utente resta quella configurata (la sposta l'app, se serve)
+if (Test-Path -LiteralPath $CfgFile) { try { $d = (Get-Content -LiteralPath $CfgFile -Raw -Encoding UTF8 | ConvertFrom-Json).docs; if ($d) { $Docs = $d } } catch {} }
 $env:NT_OWNER = $Owner; $env:NT_REPO = $Repo; $env:NT_CANALE = $Canale; $env:NT_DOCS = $Docs; $env:NT_BASE = $InstallerBase
 $cfgPy = @'
 import json, os, sys
@@ -223,8 +225,10 @@ try:
     c = json.load(open(p, encoding="utf-8"))
 except Exception:
     c = {}
+if "docs" not in c:                    # prima installazione: cartella nuova, niente da spostare
+    c.update(docs=os.environ["NT_DOCS"], docs_versione=2)
 c.update(owner=os.environ["NT_OWNER"], repo=os.environ["NT_REPO"], canale=os.environ["NT_CANALE"],
-         docs=os.environ["NT_DOCS"], installer_base=os.environ["NT_BASE"], installer_version=1)
+         installer_base=os.environ["NT_BASE"], installer_version=2)
 json.dump(c, open(p + ".tmp", "w", encoding="utf-8"), indent=2, ensure_ascii=False)
 os.replace(p + ".tmp", p)
 '@
@@ -296,6 +300,7 @@ if ($Old -and (Test-Path -LiteralPath (Join-Path $Old 'app\gui.py')) -and -not (
     $oldSet = Join-Path $Old 'impostazioni.json'
     if (Test-Path -LiteralPath $oldSet) { Copy-Item -LiteralPath $oldSet -Destination (Join-Path $Home2 'impostazioni.json') -Force }
     # i percorsi relativi "dati/..." diventano i Documenti alla prima apertura (common.py, settings_version 3)
+    New-Item -ItemType Directory -Force -Path $Docs | Out-Null
     $oldDati = Join-Path $Old 'dati'
     if (Test-Path -LiteralPath $oldDati) {
         Get-ChildItem -LiteralPath $oldDati -File | Where-Object { $_.Extension -in '.xlsx', '.txt', '.csv' } | ForEach-Object {
