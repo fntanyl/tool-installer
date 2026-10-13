@@ -238,8 +238,12 @@ try {
         Authorization = "Bearer $Token"; Accept = 'application/vnd.github.raw'; 'X-GitHub-Api-Version' = '2022-11-28' }
 } catch { Fail "download dell'aggiornatore non riuscito" }
 Say "[4/6] installo versione e librerie (la prima volta qualche minuto)..."
-$rc = Run-Logged $VenvPy @($UpdPy, 'installa', '--root', $Root, '--canale', $Canale) $Token
-foreach ($line in ($script:LastOut -split "`r?`n")) { if ($line.Trim()) { Say "      $line" } }
+# output in tempo reale (avanzamento delle librerie); la chiave arriva da stdin, il BOM lo toglie updater.py
+$env:PYTHONIOENCODING = 'utf-8'
+$prevEap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+$Token | & $VenvPy $UpdPy installa --root $Root --canale $Canale 2>$null | ForEach-Object { Say "      $_" }
+$rc = $LASTEXITCODE
+$ErrorActionPreference = $prevEap
 $Cur = $null
 try { $Cur = (Get-Content -LiteralPath (Join-Path $Root 'current.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version } catch {}
 if ($rc -ne 0 -or -not $Cur -or -not (Test-Path -LiteralPath (Join-Path $Root "versions\$Cur\boot.py"))) { Fail "installazione della versione non riuscita" }
